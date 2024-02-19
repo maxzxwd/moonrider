@@ -1,0 +1,21 @@
+<a-mixin id="infoText" mixin="font"
+  text="lineHeight: 40; color: #FAFAFA; letterSpacing: -2; align: center; opacity: 0.7"></a-mixin>
+
+<a-entity id="infoContainer" bind__visible="isPlaying" render-order="score">
+
+
+
+  <a-entity id="infoNumberContainer" position="-1.5 0.13 -4">
+    <a-entity id="clock" mixin="infoText" bind__text="color: colorPrimary"
+      text="value: 0; width: 3.5; align: right; anchor: right"
+      bind__clock="enabled: isVictory; value: score.finalAccuracy" clock="type: test" rotation="-20 0 0"
+      position="-0.025 0.175 0">
+    </a-entity>
+
+    <!-- <a-entity id="accuracy" mixin="infoText"
+      bind__text="color: colorSecondary; value: score.accuracyInt + '%' + ' / ' + score.score"
+      text="width: 3.5; align: left; anchor: left" rotation="-20 0 0"></a-entity> -->
+  </a-entity>
+
+
+</a-entity>
