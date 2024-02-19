@@ -1,4 +1,5 @@
 import utils from '../utils';
+import COLORS from '../constants/colors';
 
 let skipDebug = AFRAME.utils.getUrlParameter('skip') || 0;
 skipDebug = parseInt(skipDebug, 10);
@@ -13,8 +14,10 @@ export const SWORD_OFFSET = 1.5;
 
 // How far out to load beats (ms).
 const isMobile = AFRAME.utils.device.isMobile();
-const BEAT_FORWARD_TIME = isMobile ? 2000 : 3500;
-const WALL_FORWARD_TIME = isMobile ? 7500 : 10000;
+// const BEAT_FORWARD_TIME = isMobile ? 2000 : 3500;
+const BEAT_FORWARD_TIME = 2500; // TODO Adjust, my old was 4000
+const WALL_FORWARD_TIME = 2500;
+// const WALL_FORWARD_TIME = isMobile ? 7500 : 10000;
 
 /**
  * Load beat data (all the beats and such).
@@ -103,9 +106,49 @@ AFRAME.registerComponent('beat-generator', {
     this.el.addEventListener('gamemenurestart', this.onRestart.bind(this));
 
     this.el.addEventListener('ziploaderend', evt => {
+      // TODO Set theme
+      console.log('ziploaderend', evt.detail)
       this.beats = evt.detail.beats;
+      console.log('set beats', this.beats);
+      try {
+        let colorLeft = evt.detail.info._difficultyBeatmapSets[0]._difficultyBeatmaps[0]._customData._colorLeft;
+        let colorRight = evt.detail.info._difficultyBeatmapSets[0]._difficultyBeatmaps[0]._customData._colorRight;
+
+
+
+        function componentToHex(c) {
+          c = Math.round(c * 256);
+          if (c > 255) c = 255;
+
+          var hex = c.toString(16);
+          return hex.length == 1 ? "0" + hex : hex;
+        }
+
+        function rgbToHex(r, g, b) {
+          return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+        }
+
+        let obstacleColor = COLORS.schemes[localStorage.getItem('colorScheme') || 'default'].tertiary;
+        try {
+          let _obstacleColor = evt.detail.info._difficultyBeatmapSets[0]._difficultyBeatmaps[0]._customData._obstacleColor;
+          obstacleColor = rgbToHex(_obstacleColor.r, _obstacleColor.g, _obstacleColor.b);
+        } catch (e) { }
+
+        colorLeft = rgbToHex(colorLeft.r, colorLeft.g, colorLeft.b);
+        colorRight = rgbToHex(colorRight.r, colorRight.g, colorRight.b);
+        console.log('ziploaderend', colorLeft, colorRight, obstacleColor);
+        this.el.sceneEl.emit('colorschemechangetemp', { colorLeft: colorLeft, colorRight: colorRight, obstacleColor: obstacleColor }, false);
+        this.el.sceneEl.systems.materials.setColorScheme('song');
+        window.songThemeActive = true;
+
+
+      } catch (e) { }
+
+
       if (!this.data.challengeId || this.data.hasSongLoadError) { return; }
-      this.beatData = this.beats[this.data.beatmapCharacteristic + '-' + this.data.difficulty];
+
+
+      this.beatData = this.beats[this.data.beatmapCharacteristic + '-' + /* window.fileDifficultyMap[ */this.data.difficulty/* ] */];
       this.processBeats();
     });
 
@@ -309,7 +352,7 @@ AFRAME.registerComponent('beat-generator', {
       beatEl.setAttribute('render-order', renderOrder);
     } else {
       beatEl.components.beat.onGenerate(songPosition, horizontalPosition, verticalPosition,
-        cutDirection, this.playerHeight.beatOffset);
+        cutDirection, this.playerHeight.beatOffset, noteInfo._customData);
       beatEl.components.beat.blockEl.object3D.renderOrder = renderOrder;
     }
     beatEl.play();
@@ -339,7 +382,12 @@ AFRAME.registerComponent('beat-generator', {
     const horizontalPosition = this.horizontalPositionsHumanized[wallInfo._lineIndex] || 'none';
     const isCeiling = wallInfo._type === 1;
     const length = durationSeconds * data.speed;
-    const width = wallInfo._width / 2; // We want half the reported width.
+    let width = wallInfo._width;  // We want half the reported width.
+    if (width >= 1000) {
+      width = (width - 1000) / 1000
+    }
+
+    width = width / 2;
 
     // Factor in beat anticipation time (percentage).
     const positionOffset = (BEAT_ANTICIPATION_TIME) / data.songDuration;
@@ -351,7 +399,7 @@ AFRAME.registerComponent('beat-generator', {
 
     const lengthPercent = length / this.curveEl.components.supercurve.length;
     wallEl.components.wall.onGenerate(songPosition, horizontalPosition, width, length,
-      isCeiling, songPosition + lengthPercent);
+      isCeiling, songPosition + lengthPercent, wallInfo, wallInfo._customData);
     wallEl.play();
 
     // Set render order (back to front so decreasing render order as index increases).

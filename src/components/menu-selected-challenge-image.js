@@ -1,12 +1,17 @@
+import utils from '../utils';
+
 AFRAME.registerComponent('menu-selected-challenge-image', {
   schema: {
-    coverURL: { type: 'string' }
+    selectedChallengeId: { type: 'string' }
   },
 
   update: function () {
     const el = this.el;
+    if (!this.data.selectedChallengeId) { return; }
     el.setAttribute(
       'material', 'src',
-      this.data.coverURL);
+      this.data.selectedChallengeId
+      // utils.getS3FileUrl(this.data.selectedChallengeId, 'image.jpg')
+    );
   }
 });

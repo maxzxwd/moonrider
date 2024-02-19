@@ -33,6 +33,9 @@
 <a-asset-item id="mineObj" src="assets/models/mine.obj"></a-asset-item>
 <a-asset-item id="mineBrokenObj" src="assets/models/minebroken.gltf"></a-asset-item>
 
+<a-asset-item id="leftHandObj" src="assets/models/leftHand.obj"></a-asset-item>
+<a-asset-item id="rightHandObj" src="assets/models/rightHand.obj"></a-asset-item>
+
 <!--
  https://freesound.org/people/juskiddink/sounds/70043/
  https://freesound.org/people/Robinhood76/sounds/337436/
@@ -48,6 +51,9 @@
 <audio id="hitSound{{ i }}left" src="assets/sounds/hit{{ i }}left.ogg"></audio>
 <audio id="hitSound{{ i }}right" src="assets/sounds/hit{{ i }}right.ogg"></audio>
 {% endfor %}
+
+<!-- <audio id="hitSoundCustom" src="https://siasky.net/TODO_SKYLINK"></audio>
+<audio id="hitSoundBad" src="https://siasky.net/TODO_SKYLINK"></audio> -->
 
 <img id="cursorMeshImg" src="assets/models/laser/laser.png">
 <img id="downIconImg" src="assets/img/downIcon.png">
@@ -86,7 +92,9 @@
 <img id="modePunchImg" src="assets/img/modepunch.jpg">
 <img id="modeViewerImg" src="assets/img/modeviewer.jpg">
 
-<a-mixin id="slice" slice9="color: #050505; transparent: true; opacity: 0.9; src: #sliceImg; left: 50; right: 52; top: 50; bottom: 52; padding: 0.18"></a-mixin>
+<a-mixin id="slice"
+  slice9="color: #050505; transparent: true; opacity: 0.9; src: #sliceImg; left: 50; right: 52; top: 50; bottom: 52; padding: 0.18">
+</a-mixin>
 <a-mixin id="font" text="font: assets/fonts/Viga-Regular.json; shader: msdf; letterSpacing: 1"></a-mixin>
 
 <a-mixin id="superKeyboardTextInput" mixin="font"></a-mixin>
@@ -100,7 +108,9 @@
 <a-mixin id="dotBlueBeat" mixin="beat" beat="color: blue; type: dot"></a-mixin>
 <a-mixin id="dotRedBeat" mixin="beat" beat="color: red; type: dot"></a-mixin>
 <a-mixin id="mine" mixin="beat" beat="type: mine"></a-mixin>
-<a-mixin id="beatShadow" mixin="beat" geometry="primitive: plane; width: 0.7; height: 0.6" rotation="-90 0 0" material="src: #minefxImg; shader: flat; color: #000; transparent: true; opacity: 0.2" render-order="beatShadow"></a-mixin>
+<a-mixin id="beatShadow" mixin="beat" geometry="primitive: plane; width: 0.7; height: 0.6" rotation="-90 0 0"
+  material="src: #minefxImg; shader: flat; color: #000; transparent: true; opacity: 0.2" render-order="beatShadow">
+</a-mixin>
 
 <a-mixin id="plume" plume obj-model="obj: #plumeObj"></a-mixin>
 <a-mixin id="arrowBluePlume" mixin="plume" plume="type: arrow; color: blue" materials="name: arrowBluePlume"></a-mixin>
@@ -109,114 +119,66 @@
 <a-mixin id="dotRedPlume" mixin="plume" plume="type: dot; color: red" materials="name: dotRedPlume"></a-mixin>
 <a-mixin id="minePlume" mixin="plume" plume="type: mine" materials="name: minePlume"></a-mixin>
 
-<a-mixin
-  id="superCut"
-  bind__supercutfx="colorPrimary: colorPrimary; colorSecondary: colorSecondary"
-  supercutfx
+<a-mixin id="superCut" bind__supercutfx="colorPrimary: colorPrimary; colorSecondary: colorSecondary" supercutfx
   geometry="primitive: plane; width: 3; height: 3"
   material="shader: superCutFxShader; transparent: true; depthWrite: false"></a-mixin>
 
-<a-mixin
-  id="redBeatBroken"
-  obj-model="obj: #beatBrokenObj"
-  beat-cut-fx="color: red"
+<a-mixin id="redBeatBroken" obj-model="obj: #beatBrokenObj" beat-cut-fx="color: red" render-order="beats"></a-mixin>
+<a-mixin id="blueBeatBroken" obj-model="obj: #beatBrokenObj" beat-cut-fx="color: blue" render-order="beats"></a-mixin>
+<a-mixin id="redDotBroken" obj-model="obj: #dotBrokenObj" beat-cut-fx="color: red; type: dot" render-order="beats">
+</a-mixin>
+<a-mixin id="blueDotBroken" obj-model="obj: #dotBrokenObj" beat-cut-fx="color: blue; type: dot" render-order="beats">
+</a-mixin>
+
+<a-mixin id="redDotPunchBroken" gltf-model="#dotPunchBrokenObj" beat-cut-fx="color: red; type: dot"
   render-order="beats"></a-mixin>
-<a-mixin
-  id="blueBeatBroken"
-  obj-model="obj: #beatBrokenObj"
-  beat-cut-fx="color: blue"
-  render-order="beats"></a-mixin>
-<a-mixin
-  id="redDotBroken"
-  obj-model="obj: #dotBrokenObj"
-  beat-cut-fx="color: red; type: dot"
-  render-order="beats"></a-mixin>
-<a-mixin
-  id="blueDotBroken"
-  obj-model="obj: #dotBrokenObj"
-  beat-cut-fx="color: blue; type: dot"
+<a-mixin id="blueDotPunchBroken" gltf-model="#dotPunchBrokenObj" beat-cut-fx="color: blue; type: dot"
   render-order="beats"></a-mixin>
 
-<a-mixin
-  id="redDotPunchBroken"
-  gltf-model="#dotPunchBrokenObj"
-  beat-cut-fx="color: red; type: dot"
-  render-order="beats"></a-mixin>
-<a-mixin
-  id="blueDotPunchBroken"
-  gltf-model="#dotPunchBrokenObj"
-  beat-cut-fx="color: blue; type: dot"
-  render-order="beats"></a-mixin>
+<a-mixin id="redBeatFX" bind__material="color: colorPrimary" obj-model="obj: #cutfxObj"
+  material="shader: cutfxShader; progress: 1" render-order="menu"
+  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 400; loop: false; easing: linear; startEvents: explode">
+</a-mixin>
 
-<a-mixin
-  id="redBeatFX"
-  bind__material="color: colorPrimary"
-  obj-model="obj: #cutfxObj"
-  material="shader: cutfxShader; progress: 1"
-  render-order="menu"
-  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 400; loop: false; easing: linear; startEvents: explode"></a-mixin>
+<a-mixin id="blueBeatFX" bind__material="color: colorSecondary" obj-model="obj: #cutfxObj"
+  material="shader: cutfxShader; progress: 1" render-order="menu"
+  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 400; loop: false; easing: linear; startEvents: explode">
+</a-mixin>
 
-<a-mixin
-  id="blueBeatFX"
-  bind__material="color: colorSecondary"
-  obj-model="obj: #cutfxObj"
-  material="shader: cutfxShader; progress: 1"
-  render-order="menu"
-  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 400; loop: false; easing: linear; startEvents: explode"></a-mixin>
+<a-mixin id="mineBroken" gltf-model="#mineBrokenObj" beat-cut-fx="type: mine" render-order="beats"></a-mixin>
 
-<a-mixin
-  id="mineBroken"
-  gltf-model="#mineBrokenObj"
-  beat-cut-fx="type: mine"
-  render-order="beats"></a-mixin>
-
-<a-mixin
-  id="mineFX"
-  geometry="primitive: plane; width: 0.6; height: 0.6"
+<a-mixin id="mineFX" geometry="primitive: plane; width: 0.6; height: 0.6"
   material="shader: flat; transparent: true; src: #minefxImg; color: {{ COLORS.schemes.default.tertiary }}; depthWrite: false"
   render-order="menu"
-  animation="property: components.material.material.opacity; from:1; to:0; dur: 400; loop: false; easing: linear; startEvents: explode"></a-mixin>
+  animation="property: components.material.material.opacity; from:1; to:0; dur: 400; loop: false; easing: linear; startEvents: explode">
+</a-mixin>
 
-<a-mixin
-  id="redPunchFX"
-  bind__material="color: colorPrimary"
-  obj-model="obj: #punchfxObj"
-  material="shader: cutfxShader; progress: 1"
-  render-order="menu"
-  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 600; loop: false; easing: linear; startEvents: explode"></a-mixin>
+<a-mixin id="redPunchFX" bind__material="color: colorPrimary" obj-model="obj: #punchfxObj"
+  material="shader: cutfxShader; progress: 1" render-order="menu"
+  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 600; loop: false; easing: linear; startEvents: explode">
+</a-mixin>
 
-<a-mixin
-  id="bluePunchFX"
-  bind__material="color: colorSecondary"
-  obj-model="obj: #punchfxObj"
-  material="shader: cutfxShader; progress: 1"
-  render-order="menu"
-  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 600; loop: false; easing: linear; startEvents: explode"></a-mixin>
+<a-mixin id="bluePunchFX" bind__material="color: colorSecondary" obj-model="obj: #punchfxObj"
+  material="shader: cutfxShader; progress: 1" render-order="menu"
+  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 600; loop: false; easing: linear; startEvents: explode">
+</a-mixin>
 
-<a-mixin
-  bind__material="color: colorTertiary"
-  id="yellowPunchFX"
-  obj-model="obj: #punchfxObj"
-  material="shader: cutfxShader; progress: 1"
-  render-order="menu"
-  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 600; loop: false; easing: linear; startEvents: explode"></a-mixin>
+<a-mixin bind__material="color: colorTertiary" id="yellowPunchFX" obj-model="obj: #punchfxObj"
+  material="shader: cutfxShader; progress: 1" render-order="menu"
+  animation="property: components.material.material.uniforms.progress.value; from: 0; to: 1; dur: 600; loop: false; easing: linear; startEvents: explode">
+</a-mixin>
 
-<a-mixin
-  id="wall"
-  material="shader: wallShader; transparent: true; side: double; opacity: 0"
+<a-mixin id="wall" material="shader: wallShader; transparent: true; side: double; opacity: 0"
   animation__fadein="property: components.material.material.uniforms.opacity.value; from: 0; to: 1; easing: easeInCubic; autoplay: false; dur: 1500"
   animation__scalein="property: object3D.position.y; from: -5; to: 0; easing: easeInOutElastic; autoplay: false; dur: 1500"
-  render-order
+  render-order wall></a-mixin>
+
+<a-mixin id="wallNoAnimation" material="shader: wallShader; transparent: true; side: double; opacity: 1" render-order
   wall></a-mixin>
 
-<a-mixin
-  id="tunnel"
-  obj-model="obj: #tunnelObj"
-  materials="name: tunnel"></a-mixin>
+<a-mixin id="tunnel" obj-model="obj: #tunnelObj" materials="name: tunnel"></a-mixin>
 
-<a-mixin
-  id="bigMenuButton"
-  geometry="primitive: plane; width: 1.15; height: 0.23"
+<a-mixin id="bigMenuButton" geometry="primitive: plane; width: 1.15; height: 0.23"
   material="shader: panelShader; brightness: 0.5; borderWidth: 0.05; ratio: 4; borderRadius: 0.6"
   animation__mouseenter1="property: components.material.material.uniforms.activePanel.value; from: 0; to: 1; startEvents: mouseenter; pauseEvents: mouseleave; dur: 100"
   animation__mouseleave1="property: components.material.material.uniforms.activePanel.value; from: 1; to: 0; startEvents: mouseleave; pauseEvents: mouseenter; dur: 100"

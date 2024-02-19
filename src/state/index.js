@@ -1,9 +1,10 @@
 /* global localStorage */
 import COLORS from '../constants/colors';
+import { MySky, SkynetClient, genKeyPairFromSeed } from "skynet-js";
+// import { UserProfileDAC } from "@skynethub/userprofile-library";
 const utils = require('../utils');
-const convertBeatmap = require('../lib/convert-beatmap');
 
-const challengeDataStore = {};
+window.challengeDataStore = {};
 let HAS_LOGGED_VR = false;
 const NUM_LEADERBOARD_DISPLAY = 10;
 const SEARCH_PER_PAGE = 6;
@@ -14,6 +15,48 @@ const SONG_SUB_NAME_DETAIL_TRUNCATE = 55;
 const DAMAGE_DECAY = 0.25;
 const DAMAGE_MAX = 10;
 
+let mySky;
+
+window.deepGet = function deepGet(obj, properties) {
+  if (obj === undefined || obj === null) {
+    return;
+  }
+  if (properties.length === 0) {
+    return obj;
+  }
+  var foundSoFar = obj[properties[0]];
+  var remainingProperties = properties.slice(1);
+  return deepGet(foundSoFar, remainingProperties);
+}
+
+window.skynetClient = new SkynetClient(/* 'https://siasky.net' */);
+const { publicKey, privateKey } = genKeyPairFromSeed("public");
+window.publicKey = publicKey;
+window.privateKey = privateKey;
+// const feedDAC = new FeedDAC();
+// const profileDAC = new UserProfileDAC();
+
+window.feetModeEnabled = false;//  AFRAME.utils.getUrlParameter('feet') != '';
+
+// console.log('feetModeEnabled', window.feetModeEnabled);
+
+window.multiplayerRoomName = AFRAME.utils.getUrlParameter('room');
+window.multiplayerEnabled = window.multiplayerRoomName !== '';
+
+console.log('multiplayerEnabled', multiplayerEnabled)
+console.log('multiplayerRoomName', multiplayerRoomName)
+
+const badSongs = {};
+
+const DEBUG_CHALLENGE = {
+
+};
+
+const SKIP_INTRO = AFRAME.utils.getUrlParameter('skipintro') === 'true';
+
+const colorScheme = localStorage.getItem('colorScheme') || 'default';
+
+
 const difficultyMap = {
   "Easy": 'Easy',
   "Expert": 'Expert',
@@ -22,33 +65,106 @@ const difficultyMap = {
   "Normal": 'Normal',
 };
 
-const badSongs = {};
+/* window.fileDifficultyMap = {
+  "easy": 'Easy',
+  "expert": 'Expert',
+  "expertPlus": 'ExpertPlus',
+  "hard": 'Hard',
+  "normal": 'Normal',
+}; */
 
-const DEBUG_CHALLENGE = {
-  author: 'Juancho Pancho',
-  difficulty: 'Expert',
-  id: '31',
-  image: 'assets/img/molerat.jpg',
-  songDuration: 100,
-  songName: 'Friday',
-  songLength: 100,
-  songSubName: 'Rebecca Black'
-};
+window.convertBeatsaverToMoonrider = function (src) {
 
-const SKIP_INTRO = AFRAME.utils.getUrlParameter('skipintro') === 'true';
+  if (src.converted) return src;
 
-const colorScheme = localStorage.getItem('colorScheme') || 'default';
+  /* const difficultyMap = {
+    "easy": 'Easy',
+    "expert": 'Expert',
+    "expertPlus": 'ExpertPlus',
+    "hard": 'Hard',
+    "normal": 'Normal',
+  }; */
 
-let favorites = localStorage.getItem('favorites-v2');
+  // src['id'] = src['versions'][0]['key'];
+  src['version'] = src['versions'][0]['hash'];
+
+  // if (src['versions']) {
+
+
+  const corsProxy = ''; // TODO Add CORS proxy for cover images
+
+  src['directDownload'] = src['versions'][0]['downloadURL'];
+
+  src['coverURL'] = corsProxy + src['versions'][0]['coverURL'];
+
+
+
+  /*   } else {
+      if (!src['directDownload'].startsWith('https://')) {
+        src['directDownload'] = 'https://beatsaver.com' + src['directDownload'];
+        src['coverURL'] = 'https://beatsaver.com' + src['coverURL'];
+      }
+    } */
+
+  let diffs = src['versions'][0]['diffs'];
+
+  // src.metadata.duration = 10.0;
+
+  src.metadata.characteristics = {};
+
+  /*   "Standard": {
+      "easy": { },
+      "normal": { },
+    } */
+
+
+  for (const item of diffs) {
+    // console.log('convertBeatsaverToMoonrider', item)
+    // src.metadata.characteristics[item['name']] = item.difficulties
+
+    if (src.metadata.characteristics[item['characteristic']] === undefined) {
+      src.metadata.characteristics[item['characteristic']] = {};
+    }
+    // console.log('convertBeatsaverToMoonrider', src.metadata.characteristics[item['characteristic']])
+
+    src.metadata.characteristics[item['characteristic']][item['difficulty']] = item;
+
+    /*   for (const i of Object.values(item.difficulties)) {
+        if (i !== null) {
+          if (i.length > src.metadata.duration) {
+  
+            src.metadata.duration = i.length;
+          }
+        }
+      } */
+  }
+  src.metadata.characteristics = JSON.stringify(src.metadata.characteristics);
+
+
+
+  // console.log('convertBeatsaverToMoonrider', src)
+
+  src.converted = true;
+
+
+
+  return src;
+
+
+}
+
+
+/* let favorites = localStorage.getItem('favorites');
 if (favorites) {
   try {
     favorites = JSON.parse(favorites);
   } catch (e) {
     favorites = [];
   }
-} else {
-  favorites = [];
-}
+} else { */
+let favorites = [];
+
+//}
 
 /**
  * State handler.
@@ -64,6 +180,7 @@ AFRAME.registerState({
   nonBindedStateKeys: ['genres'],
 
   initialState: {
+    currentTime: '12:34',
     activeHand: localStorage.getItem('hand') || 'right',
     challenge: {  // Actively playing challenge.
       audio: '',  // URL.
@@ -73,7 +190,6 @@ AFRAME.registerState({
       id: AFRAME.utils.getUrlParameter('challenge'),  // Will be empty string if not playing.
       image: '',
       isBeatsPreloaded: false,  // Whether we have passed the negative time.
-      numBeats: undefined,
       songDuration: 0,
       songName: '',
       songNameShort: '',
@@ -116,10 +232,14 @@ AFRAME.registerState({
     leaderboardQualified: false,
     leaderboardNames: '',
     leaderboardScores: '',
+    mySkyLoggedIn: false,//isLoggedIn,
+    mySkyUserId: 'TODOCHANGEMETODOCHANGEME',//userId,
+    mySkyUserName: 'username',
+    mySkyUserImage: '',
     mainMenuActive: false,
     menuActive: SKIP_INTRO, // Main menu active.
-    menuDifficulties: [],
-    menuDifficultiesIds: [],
+    menuDifficulties: [],  // List of strings of available difficulties for selected.
+    menuDifficulties2: [],
     menuSelectedChallenge: {  // Currently selected challenge in the main menu.
       author: '',
       difficulty: '',
@@ -131,21 +251,33 @@ AFRAME.registerState({
       index: -1,
       image: '',
       isFavorited: false,
-      numBeats: undefined,
       songDuration: 0,
       songInfoText: '',
       songLength: undefined,
-      numBeats: undefined,
       songName: '',
       songSubName: '',
       version: '',
-      metadata: {},
+      metadata: {
+        "duration": 182,
+        "levelAuthorName": "Timeweaver",
+        "songAuthorName": "TheFatRat",
+        "songName": "Time Lapse",
+        "songSubName": "",
+        "bpm": 127
+      },
     },
+    multiplayerEnabled: window.multiplayerEnabled,
+    multiplayerRoomName: window.multiplayerRoomName,
     optionsMenuOpen: false,
     playlist: '',
     playlists: require('../constants/playlists'),
     playlistMenuOpen: false,
     playlistTitle: '',
+    multiplayerScore: {
+      score: 0,
+      combo: 0,
+      accuracyInt: 100,  // Out of 100.
+    },
     score: {
       accuracy: 100,  // Out of 100.
       accuracyScore: 0,  // Raw number.
@@ -170,16 +302,17 @@ AFRAME.registerState({
       queryText: '',
       results: [],
       songNameTexts: '',  // All names in search results merged together.
-      songSubNameTexts: '',  // All sub names in search results merged together.
-      // url and urlPage are used to load more results from the API when scrolling down
-      url: '',
-      urlPage: 0,
+      songSubNameTexts: ''  // All sub names in search results merged together.
     },
     searchResultsPage: [],
     speed: 10
   },
 
   handlers: {
+    multiplayerscoreupdate: (state, payload) => {
+      state.multiplayerScore = payload;
+
+    },
     /**
      * Swap left-handed or right-handed mode.
      */
@@ -225,10 +358,37 @@ AFRAME.registerState({
     colorschemechange: (state, payload) => {
       state.colorScheme = payload;
       state.colorPrimary = COLORS.schemes[payload].primary;
+      // state.colorPrimaryBright = COLORS.schemes[payload].primarybright;
       state.colorSecondary = COLORS.schemes[payload].secondary;
       state.colorSecondaryBright = COLORS.schemes[payload].secondarybright;
       state.colorTertiary = COLORS.schemes[payload].tertiary;
       localStorage.setItem('colorScheme', payload);
+    },
+
+    colorschemechangetemp: (state, payload) => {
+
+      console.log('colorschemechangetemp', payload)
+
+      let theme = {
+        name: 'song',
+        off: '#111',
+        primary: payload.colorLeft,
+        primarybright: payload.colorLeft,
+        secondary: payload.colorRight,
+        secondarybright: payload.colorRight,
+        tertiary: payload.obstacleColor,
+      };
+      payload = 'song';
+
+      COLORS.schemes[payload] = theme;
+
+      state.colorScheme = payload;
+      state.colorPrimary = COLORS.schemes[payload].primary;
+      // state.colorPrimaryBright = COLORS.schemes[payload].primarybright;
+      state.colorSecondary = COLORS.schemes[payload].secondary;
+      state.colorSecondaryBright = COLORS.schemes[payload].secondarybright;
+      state.colorTertiary = COLORS.schemes[payload].tertiary;
+
     },
 
     controllerconnected: (state, payload) => {
@@ -313,6 +473,7 @@ AFRAME.registerState({
       state.score.rank = 'A';
       state.score.score = 9001;
       state.introActive = false;
+      // state.gameMode = 'dot';
       computeBeatsText(state);
     },
 
@@ -332,22 +493,42 @@ AFRAME.registerState({
 
     displayconnected: state => {
       state.hasVR = true;
+
       if (HAS_LOGGED_VR) { return; }
       try {
         if ('getVRDisplays' in navigator) {
           navigator.getVRDisplays().then(displays => {
             if (!displays.length) { return; }
+            //gtag('event', 'entervr', {event_label: displays[0].displayName});
             HAS_LOGGED_VR = true;
           });
         }
       } catch (e) { }
     },
 
-    favoritetoggle: state => {
+    favoritetoggle: async state => {
       const id = state.menuSelectedChallenge.id;
-      const challenge = challengeDataStore[id];
+      const challenge = window.challengeDataStore[id];
 
       if (!challenge) { return; }
+
+
+
+      /*    */
+
+
+      // if (state.favorites.filter(favorite => favorite.id === id).length) { return; }
+      const existing = await window.mySky.getJSONEncrypted('skyrider.hns/playlists/favorites.json');
+
+      console.log('existing', existing);
+
+      /*      print(existing);
+     
+           return; */
+
+      if (existing.data) {
+        state.favorites = existing.data;
+      }
 
       if (state.menuSelectedChallenge.isFavorited) {
         // Unfavorite.
@@ -355,17 +536,21 @@ AFRAME.registerState({
         for (let i = 0; i < state.favorites.length; i++) {
           if (state.favorites[i].id === id) {
             state.favorites.splice(i, 1);
-            localStorage.setItem('favorites-v2', JSON.stringify(state.favorites));
-            return;
+            break;
           }
         }
       } else {
         // Favorite.
         state.menuSelectedChallenge.isFavorited = true;
-        if (state.favorites.filter(favorite => favorite.id === id).length) { return; }
-        state.favorites.push(challenge)
-        localStorage.setItem('favorites-v2', JSON.stringify(state.favorites));
+        state.favorites.push(challenge);
       }
+
+
+
+      // localStorage.setItem('favorites', JSON.stringify(state.favorites));
+
+      await window.mySky.setJSONEncrypted('skyrider.hns/playlists/favorites.json', state.favorites);
+      /*  } */
     },
 
     gamemenuresume: state => {
@@ -392,7 +577,6 @@ AFRAME.registerState({
       state.menuSelectedChallenge.id = state.challenge.id;
       state.menuSelectedChallenge.difficulty = state.challenge.difficulty;
       state.menuSelectedChallenge.beatmapCharacteristic = state.challenge.beatmapCharacteristic;
-      state.menuSelectedChallenge.difficultyId = state.challenge.difficultyId;
       state.challenge.id = '';
       state.leaderboardQualified = false;
     },
@@ -422,6 +606,16 @@ AFRAME.registerState({
       state.genreMenuOpen = true;
     },
 
+    selectfavoritesplaylist: state => {
+      // state.playlistMenuOpen = true;
+      state.genre = '';
+      state.menuSelectedChallenge.id = '';
+      state.playlist = 'favorites';
+      state.playlistTitle = 'Favorites';
+      // state.playlistMenuOpen = false;
+      state.search.query = '';
+    },
+
     keyboardclose: state => {
       state.isSearching = false;
     },
@@ -435,6 +629,7 @@ AFRAME.registerState({
      * High scores.
      */
     leaderboard: (state, payload) => {
+      // console.log('got leaderboard', state, payload)
       state.leaderboard.length = 0;
       state.leaderboardFetched = true;
       state.leaderboardNames = '';
@@ -491,15 +686,24 @@ AFRAME.registerState({
      * Song clicked from menu.
      */
     menuchallengeselect: (state, id) => {
+      if (window.songThemeActive === true) {
+        let scheme = localStorage.getItem('colorScheme') || 'default';
+        AFRAME.scenes[0].systems.materials.setColorScheme(scheme);
+        AFRAME.scenes[0].emit('colorschemechange', scheme, false);
+        window.songThemeActive = false;
+      }
+
+      // console.log('menuchallengeselect', id)
+
       // Copy from challenge store populated from search results.
-      let challenge = challengeDataStore[id];
+      let challenge = window.challengeDataStore[id];
       if (!challenge) { return; }
       Object.assign(state.menuSelectedChallenge, challenge);
-      state.menuSelectedChallenge.songName = truncate(challenge.metadata.songName, 24);
+
+      state.menuSelectedChallenge.metadata.songName = truncate(challenge.metadata.songName, 24);
 
       // Populate difficulty options.
       state.menuDifficulties.length = 0;
-      state.menuDifficultiesIds.length = 0;
 
       const characteristics = JSON.parse(challenge.metadata.characteristics);
       for (const characteristic of Object.keys(characteristics)) {
@@ -527,30 +731,41 @@ AFRAME.registerState({
 
         }
       }
-      
+      console.log(state.menuDifficulties);
+
+      console.log('selected 1');
+      /* for (let i = 0; i < challenge.difficulties.length; i++) {
+        state.menuDifficulties.unshift(challenge.difficulties[i]);
+      } */
+
       state.menuDifficulties.sort(difficultyComparator);
 
-      for (const d of state.menuDifficulties) {
-        state.menuDifficultiesIds.push(d.id);
-      }
+      /* if (state.difficultyFilter &&
+        state.menuDifficulties.indexOf(state.difficultyFilter) !== -1) {
+        // Default to difficulty if filter active.
+        state.menuSelectedChallenge.difficulty = state.difficultyFilter;
+      } else { */
+      // Default to easiest difficulty.
+      state.menuSelectedChallenge.difficulty = state.menuDifficulties[0].difficulty;
+      state.menuSelectedChallenge.beatmapCharacteristic = state.menuDifficulties[0].beatmapCharacteristic;
+      // }
+      console.log('selected 2');
 
-      const selectedDifficulty = state.menuDifficulties[0];
-
-      state.menuSelectedChallenge.difficulty = selectedDifficulty.difficulty;
-      state.menuSelectedChallenge.beatmapCharacteristic = selectedDifficulty.beatmapCharacteristic;
-      state.menuSelectedChallenge.difficultyId = selectedDifficulty.id;
-
-      state.menuSelectedChallenge.image = state.menuSelectedChallenge.coverURL;
+      state.menuSelectedChallenge.image = ""; // TODO utils.getS3FileUrl(id, 'image.jpg');
       updateMenuSongInfo(state, challenge);
 
       // Reset audio if it was able to prefetched by zip-loader before.
       state.challenge.audio = '';
+
+      console.log('selected 3');
 
       computeMenuSelectedChallengeIndex(state);
       state.isSearching = false;
 
       // Favorited.
       const isFavorited = !!state.favorites.filter(favorite => favorite.id === id).length;
+
+      // console.log('state.favorites', state.favorites)
       state.menuSelectedChallenge.isFavorited = isFavorited;
 
       // Clear leaderboard.
@@ -561,25 +776,17 @@ AFRAME.registerState({
       if (badSongs[id]) {
         state.hasSongLoadError = true;
       }
+      console.log('selected 4');
     },
 
     menuchallengeunselect: state => {
       state.menuSelectedChallenge.id = '';
-      state.menuSelectedChallenge.difficultyId = '';
       state.menuSelectedChallenge.difficulty = '';
       state.menuSelectedChallenge.beatmapCharacteristic = '';
       clearLeaderboard(state);
     },
 
-    menudifficultyselect: (state, difficultyId) => {
-      let difficulty;
-      for (const d of state.menuDifficulties) {
-        if (d.id === difficultyId) {
-          difficulty = d;
-          break;
-        }
-      }
-      state.menuSelectedChallenge.difficultyId = difficultyId;
+    menudifficultyselect: (state, difficulty) => {
       state.menuSelectedChallenge.difficulty = difficulty.difficulty;
       state.menuSelectedChallenge.beatmapCharacteristic = difficulty.beatmapCharacteristic;
       updateMenuSongInfo(state, state.menuSelectedChallenge);
@@ -600,6 +807,18 @@ AFRAME.registerState({
       state.optionsMenuOpen = true;
     },
 
+
+
+    loginwithmysky: async state => {
+
+      const isLoggedIn = await window.mySky.requestLoginAccess();
+
+      if (isLoggedIn) {
+        state.mySkyUserId = await window.mySky.userID();
+        state.mySkyLoggedIn = true;
+      }
+    },
+
     pausegame: state => {
       if (!state.isPlaying) { return; }
       state.isPaused = true;
@@ -611,24 +830,43 @@ AFRAME.registerState({
      */
     playbuttonclick: state => {
       if (state.menuSelectedChallenge.id === '') { return; }
+
+      console.log('multiplayer/clear/readyPlayers', window.readyPlayers)
+      window.readyPlayers = [];
+
       if (badSongs[state.menuSelectedChallenge.id]) { return; }
 
       let source = 'frontpage';
       if (state.playlist) { source = 'playlist'; }
       if (state.search.query) { source = 'search'; }
       if (state.genre) { source = 'genre'; }
-      gtag('event', 'songsource', { event_label: source });
+      //gtag('event', 'songsource', {event_label: source});
 
       resetScore(state);
 
+
+
+
+
       // Set challenge.
       Object.assign(state.challenge, state.menuSelectedChallenge);
-
-      gtag('event', 'difficulty', { event_label: state.challenge.difficulty });
+      // state.challenge.songNameShort = truncate(state.challenge.songName, 20);
+      //gtag('event', 'difficulty', {event_label: state.challenge.difficulty});
 
       // Reset menu.
       state.menuActive = false;
-      state.menuSelectedChallenge.id = '';
+
+      if (state.menuSelectedChallenge.id !== '') {
+        state.menuSelectedChallenge.id = '';
+        if (window.multiplayerEnabled) {
+          console.log('multiplayer/broadcast/playbuttonclick')
+          /* console.log('multiplayer/clear/readyPlayers', window.readyPlayers)
+          window.readyPlayers = []; */
+          NAF.connection.broadcastDataGuaranteed('playbuttonclick', 'hey');
+        }
+      } else {
+        state.menuSelectedChallenge.id = '';
+      }
       state.menuSelectedChallenge.difficulty = '';
       state.menuSelectedChallenge.beatmapCharacteristic = '';
 
@@ -636,7 +874,10 @@ AFRAME.registerState({
       state.isLoading = true;
       state.loadingText = 'Loading...'
 
-      gtag('event', 'colorscheme', { event_label: state.colorScheme });
+
+
+
+      //gtag('event', 'colorscheme', {event_label: state.colorScheme});
     },
 
     playlistclear: (state, playlist) => {
@@ -678,38 +919,42 @@ AFRAME.registerState({
       state.search.page++;
       computeSearchPagination(state);
 
-      if (state.search.url === undefined) {
-        return;
-      }
+      console.log('searchlength', state.search.results.length);
 
       if ((state.search.page + 3) > Math.floor(state.search.results.length / SEARCH_PER_PAGE)) {
 
-        state.search.urlPage = state.search.urlPage + 1;
+        console.log('searchfetching new page');
 
-        fetch(state.search.url.replaceAll('CURRENT_PAGE_INDEX', state.search.urlPage))
+        window.currentSearchPage = window.currentSearchPage + 1;
+
+        fetch(window.currentSearchUrl.replaceAll('CURRENT_PAGE_INDEX',
+          window.currentSearchPage))
           .then(r => { return r.json() })
           .then(res => {
-            var hits = (res['docs'] || res['maps']).map(convertBeatmap)
+
+            var hits = res['docs'].map(window.convertBeatsaverToMoonrider)
+            console.log('results', hits);
 
             state.search.results.push(...hits);
 
-            for (i = 0; i < hits.length; i++) {
-              let result = hits[i];
-              challengeDataStore[result.id] = result;
-            }            
+            /* this.eventDetail.results = hits;
+
+            this.el.sceneEl.emit('searchresults', this.eventDetail); */
           })
+
+
       }
+
     },
 
     /**
      * Update search results. Will automatically render using `bind-for` (menu.html).
      */
     searchresults: (state, payload) => {
+      console.log('searchresults', payload)
       var i;
       state.search.hasError = false;
       state.search.page = 0;
-      state.search.url = payload.url;
-      state.search.urlPage = payload.urlPage;
       state.search.query = payload.query;
       state.search.queryText = truncate(payload.query, 10);
       state.search.results = payload.results;
@@ -718,7 +963,7 @@ AFRAME.registerState({
         // result.songSubName = result.songSubName || 'Unknown Artist';
         // result.shortSongName = truncate(result.songName, SONG_NAME_TRUNCATE).toUpperCase();
         // result.shortSongSubName = truncate(result.songSubName, SONG_SUB_NAME_RESULT_TRUNCATE);
-        challengeDataStore[result.id] = result;
+        window.challengeDataStore[result.id] = result;
       }
       computeSearchPagination(state);
       state.menuSelectedChallenge.id = '';  // Clear any selected on new results.
@@ -729,7 +974,7 @@ AFRAME.registerState({
     },
 
     songcomplete: state => {
-      gtag('event', 'songcomplete', { event_label: state.gameMode });
+      //gtag('event', 'songcomplete', {event_label: state.gameMode});
 
       // Move back to menu in Ride or Viewer Mode.
       if (state.gameMode === 'ride' || !state.inVR) {
@@ -790,6 +1035,24 @@ AFRAME.registerState({
     },
 
     songprocessfinish: state => {
+      if (window.multiplayerEnabled) {
+        console.log('multiplayer/broadcast/songprocessfinish')
+        NAF.connection.broadcastDataGuaranteed('songprocessfinish');
+
+        window.readyPlayers.push(NAF.clientId);
+
+        if (window.readyPlayers.length > Object.keys(NAF.connection.connectedClients).length) {
+          state.isSongProcessing = false;
+          state.isLoading = false;  // Done loading after final step!
+        }
+      } else {
+        state.isSongProcessing = false;
+        state.isLoading = false;  // Done loading after final step!
+      }
+    },
+
+
+    songprocessfinishmultiplayer: state => {
       state.isSongProcessing = false;
       state.isLoading = false;  // Done loading after final step!
     },
@@ -801,12 +1064,6 @@ AFRAME.registerState({
 
     'enter-vr': state => {
       state.inVR = AFRAME.utils.device.checkHeadsetConnected();
-      if (!AFRAME.utils.device.isMobile()) { 
-        gtag('event', 'entervr', {});
-        if (AFRAME.utils.device.isOculusBrowser()) {
-          gtag('event', 'oculusbrowser', {});
-        }
-      }
     },
 
     'exit-vr': state => {
@@ -816,9 +1073,68 @@ AFRAME.registerState({
       }
     },
 
-    startgame: state => {
+    /*   init: function () {
+  
+        console.log('init');
+      
+      }, */
+
+    startgame: async state => {
       state.introActive = false;
       state.menuActive = true;
+
+      // console.log('startgame', AFRAME.scenes[0])
+
+      if (state.multiplayerEnabled) {
+
+        AFRAME.scenes[0].setAttribute('networked-scene', { room: state.multiplayerRoomName });
+        AFRAME.scenes[0].emit('connect');
+      }
+
+
+
+      /*   (async () => { */
+      window.mySky = await window.skynetClient.loadMySky("skyrider.hns", {
+        debug: true,
+        // dev: true,
+      });
+      // console.log(1)
+
+      await window.mySky.loadDacs(/* feedDAC, */ /* profileDAC */);
+
+      // console.log(2)
+
+      const isLoggedIn = await window.mySky.checkLogin();
+
+      // console.log(3)
+
+      let userId = '';
+
+      if (isLoggedIn) {
+        console.log('Logged in with MySky.')
+        state.mySkyUserId = await window.mySky.userID();
+
+
+        // console.log(5)
+        state.mySkyLoggedIn = true;
+
+        const existing = await window.mySky.getJSONEncrypted('skyrider.hns/playlists/favorites.json');
+        // console.log('existing', existing);
+        if (existing.data) {
+          state.favorites = existing.data;
+        }
+
+        // console.log(this);
+
+
+
+        // TODO Load Profile
+      }
+
+
+      /*  })(); */
+
+      // initMySky()
     },
 
     victoryfake: state => {
@@ -844,9 +1160,10 @@ AFRAME.registerState({
   },
 
   /**
-   * Post-process the state after each action.
-   */
+ * Post-process the state after each action.
+ */
   computeState: state => {
+
     state.isPlaying =
       !state.menuActive && !state.isLoading && !state.isPaused && !state.isVictory &&
       !state.isGameOver && !state.isZipFetching && !state.isSongProcessing &&
@@ -872,6 +1189,7 @@ AFRAME.registerState({
   }
 });
 
+
 function computeSearchPagination(state) {
   let numPages = Math.ceil(state.search.results.length / SEARCH_PER_PAGE);
   state.search.hasPrev = state.search.page > 0;
@@ -891,7 +1209,7 @@ function computeSearchPagination(state) {
     state.search.songNameTexts +=
       truncate(result.metadata.songName, SONG_NAME_TRUNCATE).toUpperCase() + '\n';
     state.search.songSubNameTexts +=
-      truncate((result.metadata.songSubName || result.metadata.songAuthorName || 'Unknown Artist'),
+      truncate((result.metadata.songAuthorName || 'Unknown Artist'),
         SONG_SUB_NAME_RESULT_TRUNCATE) + '\n';
   }
 
@@ -901,6 +1219,8 @@ function computeSearchPagination(state) {
 
   computeMenuSelectedChallengeIndex(state);
 }
+
+
 
 function truncate(str, length) {
   if (!str) { return ''; }
@@ -964,6 +1284,19 @@ function computeMenuSelectedChallengeIndex(state) {
   }
 }
 
+function broadcastScoreData(state, username) {
+  const liveScoreData = {
+    accuracy: state.score.accuracy,
+    accuracyInt: state.score.accuracyInt,
+    score: state.score.score,
+    combo: state.score.combo,
+    mySkyUserName: state.mySkyUserName,
+    mySkyUserId: state.mySkyUserId,
+  };
+
+  NAF.connection.broadcastData('livescoredata', liveScoreData)
+}
+
 function formatSongLength(songLength) {
   songLength /= 60;
   const minutes = `${Math.floor(songLength)}`;
@@ -988,7 +1321,12 @@ function clearLeaderboard(state) {
 function updateMenuSongInfo(state, challenge) {
   let info = JSON.parse(challenge.metadata.characteristics)[state.menuSelectedChallenge.beatmapCharacteristic][state.menuSelectedChallenge.difficulty];
 
-  state.menuSelectedChallenge.songInfoText = `Mapped by ${truncate(challenge.metadata.levelAuthorName, SONG_SUB_NAME_DETAIL_TRUNCATE)}\n${challenge.genre && challenge.genre !== 'Uncategorized' ? challenge.genre + '\n' : ''}${formatSongLength(challenge.metadata.duration)} / ${info.notes} notes\n${info.bombs} bombs | ${info.obstacles} obstacles\nNJS: ${info.njs}`;
+  state.menuSelectedChallenge.songInfoText = `By ${truncate(challenge.metadata.songAuthorName || 'Unknown artist', SONG_SUB_NAME_DETAIL_TRUNCATE)}\n${challenge.genre && challenge.genre !== 'Uncategorized' ? challenge.genre + '\n' : ''}${formatSongLength(challenge.metadata.duration)} / ${info.notes} notes\n${info.bombs} bombs | ${info.obstacles} obstacles\nNJS: ${info.njs}`;
+
+  // "njs": 16,
+  // Note Jump Speed (NJS) is the rate at which blocks move down the track at the player. The higher the number the faster the blocks.
+
+
 }
 
 function updateScoreAccuracy(state) {
@@ -997,4 +1335,8 @@ function updateScoreAccuracy(state) {
   state.score.accuracy = (state.score.accuracyScore / (currentNumBeats * 100)) * 100;
   state.score.accuracy = state.score.accuracy.toFixed(2);
   state.score.accuracyInt = parseInt(state.score.accuracy);
+
+  if (window.multiplayerEnabled) {
+    broadcastScoreData(state);
+  }
 }

@@ -1,9 +1,7 @@
 const debounce = require('lodash.debounce');
 
-const convertBeatmap = require('../lib/convert-beatmap');
 
-const topSearchRaw = require('../lib/search.json');
-const topSearch = topSearchRaw.map(convertBeatmap);
+const topSearch = require('../lib/search.json');
 
 const filters = [];
 
@@ -20,18 +18,17 @@ AFRAME.registerComponent('search', {
   },
 
   init: function () {
-    this.eventDetail = { query: '', results: topSearch, url: '', page: 0 };
+    const topSearch2 = topSearch.map(window.convertBeatsaverToMoonrider);
+    this.eventDetail = { query: '', results: topSearch2 };
     this.keyboardEl = document.getElementById('keyboard');
-    this.popularHits = topSearch;
+    this.popularHits = topSearch2;
     shuffle(this.popularHits);
     this.queryObject = { hitsPerPage: 0, query: '' };
-    this.el.sceneEl.addEventListener('searchclear', () => {
-      this.search('');
-    });
+    this.el.sceneEl.addEventListener('searchclear', () => { this.search(''); });
   },
 
   update: function (oldData) {
-    if (!this.popularHits) { return; } // First load.
+    if (!this.popularHits) { return; }  // First load.
 
     this.search(this.data.query);
 
@@ -60,6 +57,7 @@ AFRAME.registerComponent('search', {
   },
 
   search: function (query) {
+
     // Use cached for popular hits.
     if (!query && this.data.difficultyFilter === 'All' && !this.data.genre &&
       !this.data.playlist && this.popularHits) {
@@ -75,40 +73,79 @@ AFRAME.registerComponent('search', {
 
     // Favorites.
     if (this.data.playlist === 'favorites') {
-      this.eventDetail.results = JSON.parse(localStorage.getItem('favorites-v2'));
-      this.el.sceneEl.emit('searchresults', this.eventDetail);
+      // console.log('load favorites 1');
+
+      (async () => {
+
+        console.log('load favorites');
+
+        window.state.searchResultsPage = [];
+
+
+        try {
+          const res = await window.mySky.getJSONEncrypted('skyrider.hns/playlists/favorites.json')
+
+          console.log('load favorites', res);
+          // console.log('res', res);
+
+          this.eventDetail.results = res.data === null ? [] : res.data//JSON.parse(localStorage.getItem('favorites'));
+        } catch (e) {
+          throw e;
+          this.eventDetail.results = [];
+        }
+        // console.log('done load favorites', this.eventDetail.results);
+
+        this.el.sceneEl.emit('searchresults', this.eventDetail);
+
+
+        /* this.eventDetail.results = content.hits;
+        this.el.sceneEl.emit('searchresults', this.eventDetail); */
+
+
+      })();
+
+
       return;
     }
 
-    /*     if (this.data.difficultyFilter || this.data.genre || this.data.playlist) {
-          filters.length = 0
-    
-          // Difficulty filter.
-          if (this.data.difficultyFilter && this.data.difficultyFilter !== 'All') {
-            filters.push(`difficulties:"${this.data.difficultyFilter}"`)
-          }
-    
-          // Genre filter.
-          if (this.data.genre === 'Video Games') {
-            filters.push(`genre:"Video Game" OR genre:"Video Games"`)
-          } else if (this.data.genre) {
-            filters.push(`genre:"${this.data.genre}"`)
-          }
-    
-          // Playlist filter.
-          if (this.data.playlist) {
-            filters.push(`playlists:"${this.data.playlist}"`)
-          }
-    
-          this.queryObject.filters = filters.join(' AND ')
-        } else {
-          delete this.queryObject.filters
-        } */
-    let url = `https://beatsaver.com/api/search/text/CURRENT_PAGE_INDEX?sortOrder=Rating&automapper=true&q=${encodeURIComponent(query)}`;
+    if (this.data.difficultyFilter || this.data.playlist) {
+      filters.length = 0;
 
-    if (this.data.playlist) {
-      url = `https://api.beatsaver.com/playlists/id/${this.data.playlist}/CURRENT_PAGE_INDEX`;
-    } else if (this.data.genre) {
+      // Difficulty filter.
+      if (this.data.difficultyFilter && this.data.difficultyFilter !== 'All') {
+        filters.push(`difficulties:"${this.data.difficultyFilter}"`);
+      }
+
+      // Genre filter.
+      /*    if (this.data.genre === 'Video Games') {
+           filters.push(`genre:"Video Game" OR genre:"Video Games"`);
+         } else if (this.data.genre) {
+           filters.push(`genre:"${this.data.genre}"`);
+         } */
+      // console.log('playlist', this.data.playlist)
+
+      // Playlist filter.
+      if (this.data.playlist) {
+        fetch(`/assets/data/playlists/${this.data.playlist}.json`)
+          .then(r => { return r.json() })
+          .then(res => {
+            // console.log('fetch', res);
+
+            this.eventDetail.results = res.map(window.convertBeatsaverToMoonrider);
+
+            this.el.sceneEl.emit('searchresults', this.eventDetail);
+          })
+        return;
+        filters.push(`playlists:"${this.data.playlist}"`);
+      }
+
+      this.queryObject.filters = filters.join(' AND ');
+    } else {
+      delete this.queryObject.filters;
+    }
+
+    if (this.data.genre) {
+
       const genreMap = {
         'Pop': 'pop',
         'R&B': 'rb',
@@ -125,27 +162,57 @@ AFRAME.registerComponent('search', {
         'Alternative': 'alternative',
         'Anime': 'anime',
         'Comedy': 'comedy-meme',
+
         'Dubstep': 'dubstep',
-        'Dance': 'dance'
+        'Dance': 'dance',
       };
+
+      console.log('searchgenre', this.data.genre);
+
       const tag = genreMap[this.data.genre];
-      url = `https://beatsaver.com/api/search/text/CURRENT_PAGE_INDEX?sortOrder=Rating&automapper=true&tags=${encodeURIComponent(tag)}`;
-    } else {
-      if (query && query.length < 3) { return; }
+
+      console.log('searchtag', tag);
+      window.currentSearchPage = 0;
+      window.currentSearchUrl = `https://beatsaver.com/api/search/text/CURRENT_PAGE_INDEX?sortOrder=Rating&tags=${encodeURIComponent(tag)}`;
+
+      fetch(window.currentSearchUrl.replaceAll('CURRENT_PAGE_INDEX', 0))
+        .then(r => { return r.json() })
+        .then(res => {
+          // console.log('fetch', res);
+
+          var hits = res['docs'].map(window.convertBeatsaverToMoonrider)
+          console.log('results', hits);
+
+          this.eventDetail.results = hits;
+
+          this.el.sceneEl.emit('searchresults', this.eventDetail);
+        })
+      return;
     }
 
-    fetch(url.replaceAll('CURRENT_PAGE_INDEX', 0))
-      .then(r => {
-        return r.json();})
+    if (query && query.length < 3) { return; }
+    /* console.log(query);
+    console.log(this.queryObject); */
+
+
+
+    window.currentSearchPage = 0;
+    window.currentSearchUrl = `https://beatsaver.com/api/search/text/CURRENT_PAGE_INDEX?sortOrder=Rating&q=${encodeURIComponent(query)}`;
+
+    // 
+    // fetch(`https://beatsaver.com/api/search/text/0?q=${encodeURIComponent(query)}&sortOrder=Relevance`)
+    fetch(window.currentSearchUrl.replaceAll('CURRENT_PAGE_INDEX', 0))
+      .then(r => { return r.json() })
       .then(res => {
-        var hits = (res['docs'] || res['maps']).map(convertBeatmap);
+        // console.log('fetch', res);
+
+        var hits = res['docs'].map(window.convertBeatsaverToMoonrider)
+        console.log('results', hits);
 
         this.eventDetail.results = hits;
-        this.eventDetail.url = url;
-        this.eventDetail.urlPage = 0;
 
         this.el.sceneEl.emit('searchresults', this.eventDetail);
-      });
+      })
   }
 });
 
@@ -166,6 +233,11 @@ AFRAME.registerComponent('search-result-list', {
 
   events: {
     click: function (evt) {
+      if (window.multiplayerEnabled) {
+        console.log('multiplayer/broadcast/menuchallengeselect', evt.target.closest('.searchResult').dataset.id)
+        NAF.connection.broadcastDataGuaranteed('menuchallengeselect', evt.target.closest('.searchResult').dataset.id);
+      }
+
       this.el.sceneEl.emit(
         'menuchallengeselect',
         evt.target.closest('.searchResult').dataset.id,
@@ -178,7 +250,7 @@ AFRAME.registerComponent('search-result-list', {
   }
 });
 
-function shuffle (array) {
+function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];

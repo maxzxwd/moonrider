@@ -159,6 +159,20 @@ AFRAME.registerSystem('materials', {
       blending: THREE.AdditiveBlending
     });
 
+    // TODO Change leftHand material
+    this.leftHand = new THREE.ShaderMaterial({
+      vertexShader: require('./shaders/weapon.vert.glsl'),
+      fragmentShader: require('./shaders/weapon.frag.glsl'),
+      uniforms: {
+        src: { value: weaponTexture },
+        color: { value: new THREE.Color(scheme.primary) },
+        thickness: { value: 1.6 },
+        time: { value: 0 }
+      },
+      transparent: true,
+      blending: THREE.AdditiveBlending
+    });
+
     this.leftWeapon = new THREE.ShaderMaterial({
       vertexShader: require('./shaders/weapon.vert.glsl'),
       fragmentShader: require('./shaders/weapon.frag.glsl'),

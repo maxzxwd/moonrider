@@ -18,6 +18,16 @@ const COLORS = {
 
 COLORS.schemes = {
   default: {
+    name: 'Skynet',
+    off: '#111',
+    primary: '#54e346',
+    primarybright: '#8eff78',
+    secondary: '#0e49b5',
+    secondarybright: '#5a74e8',
+    tertiary: '#fffaa4'
+  },
+
+  white: {
     name: 'Super Medium',
     off: '#111',
     primary: COLORS.RED,

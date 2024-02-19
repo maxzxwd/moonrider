@@ -230,7 +230,11 @@ AFRAME.registerComponent('beat-system', {
       const verticalPositions = this.verticalPositions;
 
       const heightOffset = this.el.sceneEl.camera.el.object3D.position.y - REFERENCE_HEIGHT;
-      const size = SIZES[gameMode];
+      var size = SIZES[gameMode];
+
+      if (window.feetModeEnabled) {
+        size = 0.30; // 0.35
+      }
 
       // Horizontal margin based on size of blocks so they don't overlap, which a smidge
       // of extra margin.
@@ -242,10 +246,18 @@ AFRAME.registerComponent('beat-system', {
       horizontalPositions.middleright = 0.5 * hMargin;
       horizontalPositions.right = 1.5 * hMargin;
 
+      horizontalPositions.none = 0;
+
       // Vertical margin based on size of blocks so they don't overlap.
       // And then overall shifted up and down based on user height (camera Y).
       // But not too low to go underneath the ground.
-      const bottomHeight = BOTTOM_HEIGHTS[gameMode];
+      var bottomHeight = BOTTOM_HEIGHTS[gameMode];
+
+      if (window.feetModeEnabled) {
+        bottomHeight = -0.4;
+      }
+
+
       const vMargin = size;
       verticalPositions.bottom = Math.max(
         BOTTOM_HEIGHT_MIN,
@@ -362,7 +374,8 @@ AFRAME.registerComponent('beat', {
    * Called when summoned by beat-generator.
    * Called after updatePosition.
    */
-  onGenerate: function (songPosition, horizontalPosition, verticalPosition, cutDirection, heightOffset) {
+  onGenerate: function (songPosition, horizontalPosition, verticalPosition, cutDirection, heightOffset, _customData) {
+    // console.log('onGenerate', _customData)
     const data = this.data;
     const el = this.el;
 
@@ -400,16 +413,29 @@ AFRAME.registerComponent('beat', {
       el.object3D.rotation.z = THREE.Math.degToRad(ROTATIONS[cutDirection]);
     }
 
+    let _disableSpawnEffect = window.deepGet(_customData, ['_disableSpawnEffect']) || window.deepGet(_customData, ['_disableNoteGravity']) || false;
+
     // Set up rotation warmup.
     this.rotationStart = el.object3D.rotation.y;
-    this.rotationChange = WARMUP_ROTATION_CHANGE;
-    if (Math.random > 0.5) { this.rotationChange *= -1; }
+    if (_disableSpawnEffect) {
+      this.rotationChange = 0;
+    } else {
+      this.rotationChange = WARMUP_ROTATION_CHANGE;
+      if (Math.random > 0.5) { this.rotationChange *= -1; }
+    }
 
     // Set up position warmup.
-    const offset = 0.5;
-    el.object3D.position.y -= offset;
-    this.positionStart = el.object3D.position.y;
-    this.positionChange = this.verticalPositions[verticalPosition] + offset + heightOffset;
+    if (_disableSpawnEffect) {
+      el.object3D.position.y += heightOffset + this.verticalPositions[verticalPosition];
+      this.positionStart = el.object3D.position.y;
+      this.positionChange = 0;
+    } else {
+
+      const offset = 0.5;
+      el.object3D.position.y -= offset;
+      this.positionStart = el.object3D.position.y;
+      this.positionChange = this.verticalPositions[verticalPosition] + offset + heightOffset;
+    }
   },
 
   /**
@@ -446,6 +472,11 @@ AFRAME.registerComponent('beat', {
   },
 
   destroyBeat: function (weaponEl, correctHit) {
+    if (correctHit) {
+      this.el.parentNode.components['beat-hit-sound'].playSound(this.el, this.cutDirection);
+    } else {
+      this.el.parentNode.components['beat-hit-sound'].playBadSound(this.el);
+    }
     const data = this.data;
     const explodeEventDetail = this.explodeEventDetail;
     const rig = this.rigContainer.object3D;
@@ -504,7 +535,7 @@ AFRAME.registerComponent('beat', {
     }
 
     // Sound.
-    this.el.parentNode.components['beat-hit-sound'].playSound(this.el, this.cutDirection);
+    // this.el.parentNode.components['beat-hit-sound'].playSound(this.el, this.cutDirection);
 
     if (wrongHit) {
       this.wrongHit();
@@ -622,8 +653,8 @@ AFRAME.registerComponent('beat', {
    */
   autoHit: function (weaponEl) {
     const el = this.el;
-    this.destroyBeat(weaponEl, Math.random() < 0.9);
-    el.parentNode.components['beat-hit-sound'].playSound(el, this.cutDirection);
+    this.destroyBeat(weaponEl, true);//Math.random() < 0.9);
+    // el.parentNode.components['beat-hit-sound'].playSound(el, this.cutDirection);
     const hitEventDetail = this.hitEventDetail;
     hitEventDetail.percent = 100;
     hitEventDetail.score = 100;

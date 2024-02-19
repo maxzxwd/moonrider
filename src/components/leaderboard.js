@@ -1,11 +1,9 @@
-const firebase = require('firebase/app');
+
 const pr = require('profane-words');
-require('firebase/firestore');
+
 
 const NUM_SCORES_DISPLAYED = 10;
 const ba = /(fuc)|(ass)|(nig)|(shit)|(retard)/gi;
-
-// TODO! Support beatmapCharacteristic in here
 
 /**
  * High score with Firebase cloud store.
@@ -13,27 +11,27 @@ const ba = /(fuc)|(ass)|(nig)|(shit)|(retard)/gi;
  */
 AFRAME.registerComponent('leaderboard', {
   schema: {
-    apiKey: {type: 'string'},
-    authDomain: {type: 'string'},
-    databaseURL: {type: 'string'},
-    projectId: {type: 'string'},
-    storageBucket: {type: 'string'},
-    messagingSenderId: {type: 'string'},
+    apiKey: { type: 'string' },
+    authDomain: { type: 'string' },
+    databaseURL: { type: 'string' },
+    projectId: { type: 'string' },
+    storageBucket: { type: 'string' },
+    messagingSenderId: { type: 'string' },
 
-    challengeId: {default: ''},
-    difficulty: {default: ''},
+    challengeId: { default: '' },
+    difficulty: { default: '' },
     beatmapCharacteristic: { default: '' },
-    inVR: {default: false},
-    gameMode: {type: 'string'},
-    menuSelectedChallengeId: {default: ''},
-    isVictory: {default: false}
+    inVR: { default: false },
+    gameMode: { type: 'string' },
+    menuSelectedChallengeId: { default: '' },
+    isVictory: { default: false }
   },
 
   init: function () {
     this.qualifyingIndex = undefined;
     this.scores = [];
-    this.eventDetail = {scores: this.scores};
-    this.addEventDetail = {scoreData: undefined, index: undefined};
+    this.eventDetail = { scores: this.scores };
+    this.addEventDetail = { scoreData: undefined, index: undefined };
 
     this.username = localStorage.getItem('moonriderusername') || 'Super Zealot';
     this.el.addEventListener('leaderboardusername', evt => {
@@ -44,26 +42,17 @@ AFRAME.registerComponent('leaderboard', {
   },
 
   update: function (oldData) {
-    // Initialize Cloud Firestore through Firebase.
-    if (!firebase.apps.length && this.data.apiKey) {
-      firebase.initializeApp({
-        apiKey: this.data.apiKey,
-        authDomain: this.data.authDomain,
-        databaseURL: this.data.databaseURL,
-        projectId: this.data.projectId,
-        storageBucket: this.data.storageBucket,
-        messagingSenderId: this.data.messagingSenderId
-      });
-      this.firestore = firebase.firestore();
-      this.firestore.settings({});
-      this.db = this.firestore.collection('scores');
-    }
 
     if (!oldData.isVictory && this.data.isVictory) {
       this.checkLeaderboardQualify();
     }
 
     if (this.data.difficulty && oldData.difficulty !== this.data.difficulty) {
+      this.fetchScores(this.data.menuSelectedChallengeId);
+      return;
+    }
+
+    if (this.data.beatmapCharacteristic && oldData.beatmapCharacteristic !== this.data.beatmapCharacteristic) {
       this.fetchScores(this.data.menuSelectedChallengeId);
       return;
     }
@@ -80,7 +69,13 @@ AFRAME.registerComponent('leaderboard', {
     }
   },
 
+  sortScores: function () {
+    this.scores = this.scores.sort((a, b) => { return b.score - a.score });
+    // return scores.sort(function compareFn(a, b) { b.score - a.score });
+  },
+
   addScore: function () {
+    // console.log('addScore');
     const state = this.el.sceneEl.systems.state.state;
 
     if (!state.isVictory || !state.inVR) { return; }
@@ -92,43 +87,98 @@ AFRAME.registerComponent('leaderboard', {
       score: state.score.score,
       username: this.username,
       difficulty: this.data.difficulty || state.challenge.difficulty,
+      beatmapCharacteristic: this.data.beatmapCharacteristic || state.challenge.beatmapCharacteristic,
       time: new Date()
     };
 
+    // console.log(scoreData);
+
     if (!pr.includes(this.username.toLowerCase()) &&
       !this.username.match(ba)) {
-      this.db.add(scoreData);
+      // this.db.add(scoreData);
+
+      const datakey = `skyrider/leaderboard/${state.challenge.id}/${this.data.gameMode}/${this.data.beatmapCharacteristic || state.challenge.beatmapCharacteristic}/${this.data.difficulty || state.challenge.difficulty}`;
+
+      window.skynetClient.db.getJSON(window.publicKey, datakey).then(m => {
+        var scores = m.data || [];
+
+        scores.push(scoreData);
+
+        this.scores = scores;
+
+
+        window.skynetClient.db.setJSON(window.privateKey, datakey, scores).then(m => {
+          this.sortScores();
+          this.eventDetail.challengeId = state.challenge.id;
+          this.eventDetail.scores = this.scores;
+          this.el.sceneEl.emit('leaderboard', this.eventDetail, false);
+
+          /* this.addEventDetail.scoreData = scoreData;
+          this.el.emit('leaderboardscoreadded', this.addEventDetail, false); */
+        })
+
+        const datakey2 = `skyrider/leaderboard-index`;
+
+        window.skynetClient.db.getJSON(window.publicKey, datakey2).then(m => {
+          var leaderboards = m.data || [];
+
+          leaderboards.push(datakey);
+
+          window.skynetClient.db.setJSON(window.privateKey, datakey2, leaderboards)
+        })
+      })
     }
 
-    this.addEventDetail.scoreData = scoreData;
-    this.el.emit('leaderboardscoreadded', this.addEventDetail, false);
   },
 
   fetchScores: function (challengeId) {
     if (this.data.gameMode === 'ride') { return; }
 
     const state = this.el.sceneEl.systems.state.state;
-    const query = this.db
-      .where('challengeId', '==', challengeId)
-      .where(
-        'difficulty', '==',
-        state.menuSelectedChallenge.id
-          ? state.menuSelectedChallenge.difficulty
-          : state.challenge.difficulty)
-      .where('gameMode', '==', this.data.gameMode)
-      .orderBy('score', 'desc')
-      .orderBy('time', 'asc')
-      .limit(10);
-    query.get().then(snapshot => {
-      this.eventDetail.challengeId = challengeId;
-      this.scores.length = 0;
-      if (!snapshot.empty) {
-        snapshot.forEach(score => this.scores.push(score.data()));
-      }
-      this.el.sceneEl.emit('leaderboard', this.eventDetail, false);
-    }).catch(e => {
-      console.error('[firestore]', e);
-    });
+    /*    const query = this.db
+     .where('challengeId', '==', challengeId)
+     .where(
+       'difficulty', '==',
+       state.menuSelectedChallenge.id
+         ? state.menuSelectedChallenge.difficulty
+         : state.challenge.difficulty)
+     .where('gameMode', '==', this.data.gameMode)
+     .orderBy('score', 'desc')
+     .orderBy('time', 'asc')
+     .limit(10); */
+    this.eventDetail.challengeId = challengeId;
+
+    window.skynetClient.db.getJSON(window.publicKey, `skyrider/leaderboard/${challengeId}/${this.data.gameMode}/${state.menuSelectedChallenge.id
+      ? state.menuSelectedChallenge.beatmapCharacteristic
+      : state.challenge.beatmapCharacteristic}/${state.menuSelectedChallenge.id
+        ? state.menuSelectedChallenge.difficulty
+        : state.challenge.difficulty}`).then(m => {
+          this.scores.length = 0;
+          this.scores = m.data || [];
+          this.sortScores();
+          // TODO Sort
+          // console.log('scores', this.scores);
+          this.eventDetail.challengeId = challengeId;
+          this.eventDetail.scores = this.scores;
+          this.el.sceneEl.emit('leaderboard', this.eventDetail, false);
+        })
+    // this.scores.length = 0;
+
+    /* if (!snapshot.empty) {
+      snapshot.forEach(score => this.scores.push(score.data()));
+    } */
+
+
+    /*   query.get().then(snapshot => {
+        this.eventDetail.challengeId = challengeId;
+        this.scores.length = 0;
+        if (!snapshot.empty) {
+          snapshot.forEach(score => this.scores.push(score.data()));
+        }
+        this.el.sceneEl.emit('leaderboard', this.eventDetail, false);
+      }).catch(e => {
+        console.error('[firestore]', e);
+      }); */
   },
 
   /**

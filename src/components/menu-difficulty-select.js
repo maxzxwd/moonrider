@@ -14,9 +14,24 @@ AFRAME.registerComponent('menu-difficulty-select', {
 
   events: {
     click: function (evt) {
+
+      let parts = evt.target.closest('.difficultyOption').dataset.id.split('-');
+
+      let data = {
+        'beatmapCharacteristic': parts[0],
+        'difficulty': parts[1],
+      }
+
+
+      if (window.multiplayerEnabled) {
+        console.log('multiplayer/broadcast/menudifficultyselect', data)
+        NAF.connection.broadcastDataGuaranteed('menudifficultyselect',
+          data);
+      }
+
       this.el.sceneEl.emit(
         'menudifficultyselect',
-        evt.target.closest('.difficultyOption').dataset.difficulty,
+        data,
         false);
     }
   }

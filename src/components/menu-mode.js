@@ -23,14 +23,27 @@ AFRAME.registerComponent('menu-mode', {
   },
 
   init: function () {
+    this.el.addEventListener('setmodeoption', evt => {
+      this.el.sceneEl.emit('gamemode', evt.detail, false);
+
+      this.setModeOption(evt.detail);
+    });
+
     this.el.addEventListener('click', evt => {
       const item = evt.target.closest('[data-mode]');
+      console.log(item.dataset);
       const mode = item.dataset.mode;
       const name = item.dataset.name;
       this.el.sceneEl.emit('gamemode', mode, false);
       if (this.data.hasVR) {
         localStorage.setItem('gameMode', name);
       }
+
+      if (window.multiplayerEnabled) {
+        console.log('multiplayer/broadcast/setModeOption', name)
+        NAF.connection.broadcastDataGuaranteed('setmodeoption', name);
+      }
+
       this.setModeOption(name);
     });
   },

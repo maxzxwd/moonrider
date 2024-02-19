@@ -6,16 +6,24 @@
 <a-entity
   id="scoreContainer"
   bind__score-texts="isLoading: isLoading"
-  bind__visible="score.active"
+  bind__visible="score.active || isVictory"
   render-order="score">
 
   <a-entity
     id="songProgressRing"
-    bind__material="color: colorSecondary"
+    bind__material="color: colorPrimary"
     bind__song-progress-info="enabled: isPlaying || isPaused && challenge.isBeatsPreloaded"
     geometry="primitive: plane; width: 0.57; height: 0.03"
     material="shader: flat"
     position="1.525 0.1 -3.94"
+    rotation="-30 0 0">
+  </a-entity>
+  <a-entity
+    id="songProgressRingBackground"
+    bind__material="color: colorSecondary"
+    geometry="primitive: plane; width: 0.57; height: 0.03"
+    material="shader: flat"
+    position="1.525 0.1 -3.942"
     rotation="-30 0 0">
   </a-entity>
 
@@ -34,5 +42,30 @@
       bind__text="color: colorSecondary; value: score.accuracyInt + '%' + ' / ' + score.score"
       text="width: 3.5; align: left; anchor: left"
       rotation="-20 0 0"></a-entity>
+  </a-entity>
+
+  <a-entity bind__visible="multiplayerEnabled" id="multiplayerScoreNumberContainer" position="1.5 1 -4">
+    <a-entity
+      id="combo"
+      mixin="scoreText"
+      bind__text="color: colorPrimary; value: 'OPPONENT'"
+      text="width: 3.5; align: left; anchor: left"
+      rotation="0 0 0"
+      position="-0.025 0.35 0"></a-entity>
+
+      <a-entity
+        id="combo"
+        mixin="scoreText"
+        bind__text="color: colorSecondary; value: 'STREAK  ' + multiplayerScore.combo"
+        text="width: 3.5; align: left; anchor: left"
+        rotation="0 0 0"
+        position="-0.025 0.175 0"></a-entity>
+
+    <a-entity
+      id="accuracy"
+      mixin="scoreText"
+      bind__text="color: colorSecondary; value: multiplayerScore.accuracyInt + '%' + ' / ' + multiplayerScore.score"
+      text="width: 3.5; align: left; anchor: left"
+      rotation="0 0 0"></a-entity>
   </a-entity>
 </a-entity>

@@ -25,7 +25,7 @@
       position="0 -0.05 0"
       mixin="font"
       bind__text="color: colorSecondary"
-      bind__text-truncate="value: challenge.songSubName + ' - ' + challenge.author"
+      bind__text-truncate="value: challenge.metadata.songSubName + ' - ' + challenge.metadata.songAuthorName"
       text="wrapCount: 40; align: center"
       text-truncate="length: 35"
       render-order="menutext"></a-entity>

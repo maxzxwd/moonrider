@@ -74,6 +74,15 @@ AFRAME.registerComponent('beat-hit-sound', {
     soundPool.playSound(this.processSound);
   },
 
+  playBadSound: function (beatEl,) {
+    /* const rand = 1 + Math.floor(Math.random() * 10);
+    const dir = this.directionsToSounds[cutDirection || 'up']; */
+    // const soundPool = this.el.components[`sound__beathit${rand}${dir}`];
+
+    /* const soundPool = this.el.components[`sound__beathit-bad`];
+    soundPool.playSound(this.processSound); */
+  },
+
   /**
    * Set audio stuff before playing.
    */
